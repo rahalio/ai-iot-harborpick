@@ -1,0 +1,375 @@
+openapi: 3.0.3
+info:
+  title: HarborPick
+  version: 0.1.0
+  description: >-
+    Online security-aware edge-server picker for IoT offload under stochastic or adversarial jamming, with optional cooperative side-observations.
+  x-product-slug: ai-iot-harborpick
+  x-source: ai-in-iot/1805.03591v1/
+servers:
+  - url: https://api.example.com
+tags:
+  - name: Servers
+  - name: Devices
+  - name: Picks
+  - name: Outcomes
+  - name: Cooperation
+  - name: Reports
+paths:
+  /v1/servers:
+    get:
+      operationId: listServers
+      tags: [Servers]
+      security: [{ BearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/Cursor" }, { $ref: "#/components/parameters/Limit" }]
+      responses:
+        "200":
+          description: Servers
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ListEnvelopeEdgeServer" }
+    post:
+      operationId: registerServer
+      tags: [Servers]
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EdgeServer" }
+      responses:
+        "201":
+          description: Registered
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DataEnvelopeEdgeServer" }
+  /v1/devices:
+    get:
+      operationId: listDevices
+      tags: [Devices]
+      security: [{ BearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/Cursor" }, { $ref: "#/components/parameters/Limit" }]
+      responses:
+        "200":
+          description: Devices
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ListEnvelopeDevice" }
+    post:
+      operationId: registerDevice
+      tags: [Devices]
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Device" }
+      responses:
+        "201":
+          description: Registered
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DataEnvelopeDevice" }
+  /v1/picks:
+    post:
+      operationId: requestPick
+      tags: [Picks]
+      security: [{ ApiKeyAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [deviceId]
+              properties:
+                deviceId: { type: string }
+                mode: { type: string, enum: [stochastic, adversarial] }
+      responses:
+        "200":
+          description: Pick distribution
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DataEnvelopePickDecision" }
+  /v1/outcomes:
+    post:
+      operationId: reportOutcome
+      tags: [Outcomes]
+      security: [{ ApiKeyAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Outcome" }
+      responses:
+        "201":
+          description: Outcome recorded
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DataEnvelopeOutcome" }
+  /v1/cooperation/edges:
+    get:
+      operationId: listCooperationEdges
+      tags: [Cooperation]
+      security: [{ BearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/Cursor" }, { $ref: "#/components/parameters/Limit" }]
+      responses:
+        "200":
+          description: Edges
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ListEnvelopeCooperationEdge" }
+    post:
+      operationId: upsertCooperationEdge
+      tags: [Cooperation]
+      security: [{ BearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CooperationEdge" }
+      responses:
+        "201":
+          description: Upserted
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DataEnvelopeCooperationEdge" }
+  /v1/reports/regret:
+    get:
+      operationId: getRegretReport
+      tags: [Reports]
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: period
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Regret report
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DataEnvelopeRegretReport" }
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Cursor:
+      name: cursor
+      in: query
+      schema: { type: string }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+  responses:
+    Unauthorized:
+      description: Missing or invalid credentials
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    UnprocessableEntity:
+      description: Validation failed
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Problem" }
+  schemas:
+    ResponseMeta:
+      type: object
+      required: [requestId, timestamp]
+      properties:
+        requestId: { type: string }
+        timestamp: { type: string, format: date-time }
+    Problem:
+      type: object
+      required: [type, title, status]
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+
+    EdgeServer:
+      type: object
+      required: [id, trustTier, status]
+      properties:
+        id: { type: string }
+        trustTier: { type: string, enum: [allowed, restricted, prohibited] }
+        status: { type: string, enum: [up, jammed, degraded, retired] }
+        securityRisk: { type: number, format: float }
+    Device:
+      type: object
+      required: [id, tenantId, mode]
+      properties:
+        id: { type: string }
+        tenantId: { type: string }
+        mode: { type: string, enum: [stochastic, adversarial] }
+        failClosed: { type: boolean }
+    PickDecision:
+      type: object
+      required: [id, deviceId, distribution]
+      properties:
+        id: { type: string }
+        deviceId: { type: string }
+        sampledServerId: { type: string }
+        distribution:
+          type: array
+          items:
+            type: object
+            properties:
+              serverId: { type: string }
+              probability: { type: number, format: float }
+        failClosed: { type: boolean }
+    Outcome:
+      type: object
+      required: [pickId, deviceId, serverId, success]
+      properties:
+        pickId: { type: string }
+        deviceId: { type: string }
+        serverId: { type: string }
+        success: { type: boolean }
+        latencyMs: { type: number, format: float }
+        suspectedJam: { type: boolean }
+        privacyIncidentFlag: { type: boolean }
+    CooperationEdge:
+      type: object
+      required: [tenantId, fromServerId, toServerId]
+      properties:
+        tenantId: { type: string }
+        fromServerId: { type: string }
+        toServerId: { type: string }
+        enabled: { type: boolean }
+    RegretReport:
+      type: object
+      required: [period, regret, baselineSuccessRate, pickerSuccessRate]
+      properties:
+        period: { type: string }
+        regret: { type: number, format: float }
+        baselineSuccessRate: { type: number, format: float }
+        pickerSuccessRate: { type: number, format: float }
+        energyAvoidedJoules: { type: number, format: float }
+    DataEnvelopeEdgeServer:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: "#/components/schemas/EdgeServer" }
+        meta: { $ref: "#/components/schemas/ResponseMeta" }
+    ListEnvelopeEdgeServer:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/EdgeServer" }
+            nextCursor: { type: string }
+        meta: { $ref: "#/components/schemas/ResponseMeta" }
+    DataEnvelopeDevice:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: "#/components/schemas/Device" }
+        meta: { $ref: "#/components/schemas/ResponseMeta" }
+    ListEnvelopeDevice:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/Device" }
+            nextCursor: { type: string }
+        meta: { $ref: "#/components/schemas/ResponseMeta" }
+    DataEnvelopePickDecision:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: "#/components/schemas/PickDecision" }
+        meta: { $ref: "#/components/schemas/ResponseMeta" }
+    ListEnvelopePickDecision:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/PickDecision" }
+            nextCursor: { type: string }
+        meta: { $ref: "#/components/schemas/ResponseMeta" }
+    DataEnvelopeOutcome:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: "#/components/schemas/Outcome" }
+        meta: { $ref: "#/components/schemas/ResponseMeta" }
+    ListEnvelopeOutcome:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/Outcome" }
+            nextCursor: { type: string }
+        meta: { $ref: "#/components/schemas/ResponseMeta" }
+    DataEnvelopeCooperationEdge:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: "#/components/schemas/CooperationEdge" }
+        meta: { $ref: "#/components/schemas/ResponseMeta" }
+    ListEnvelopeCooperationEdge:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/CooperationEdge" }
+            nextCursor: { type: string }
+        meta: { $ref: "#/components/schemas/ResponseMeta" }
+    DataEnvelopeRegretReport:
+      type: object
+      required: [data, meta]
+      properties:
+        data: { $ref: "#/components/schemas/RegretReport" }
+        meta: { $ref: "#/components/schemas/ResponseMeta" }
+    ListEnvelopeRegretReport:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items: { $ref: "#/components/schemas/RegretReport" }
+            nextCursor: { type: string }
+        meta: { $ref: "#/components/schemas/ResponseMeta" }
